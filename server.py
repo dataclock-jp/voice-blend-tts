@@ -99,12 +99,15 @@ def status() -> dict[str, str | bool]:
     _configure_ffmpeg_dll_path()
     try:
         import torch  # noqa: F401
+        import cutlet as _cutlet  # noqa: F401
+        import unidic_lite as _unidic_lite  # noqa: F401
         from torchcodec.decoders import AudioDecoder as _AudioDecoder  # noqa: F401
         from TTS.api import TTS as _TTS  # noqa: F401
     except Exception as exc:
+        missing_module = _missing_module_name(exc)
         return {
             "ready": False,
-            "message": f"依存関係が不足しています: {exc.__class__.__name__}",
+            "message": f"依存関係が不足しています: {missing_module or exc.__class__.__name__}",
             "device": "-",
             "model": MODEL_NAME,
         }
@@ -532,6 +535,9 @@ def _default_profile_text(language: str) -> str:
 def _friendly_error(exc: Exception) -> str:
     text = str(exc)
     if "No module named" in text or exc.__class__.__name__ == "ModuleNotFoundError":
+        missing_module = _missing_module_name(exc)
+        if missing_module:
+            return f"Python依存関係が不足しています: {missing_module}。READMEのインストール手順を実行してください。"
         return "Python依存関係が不足しています。READMEのインストール手順を実行してください。"
     if "TorchCodec is required" in text or "Could not load libtorchcodec" in text:
         return "TorchCodecまたはFFmpeg共有DLLを読み込めません。READMEのWindows/TorchCodec手順を実行してください。"
@@ -544,3 +550,10 @@ def _friendly_error(exc: Exception) -> str:
     if "not enough values to unpack" in text or "Input signal length" in text:
         return "入力音声が短すぎます。2〜5秒以上の発話チャンクで再試行してください。"
     return text or "音声生成中に不明なエラーが発生しました。"
+
+
+def _missing_module_name(exc: Exception) -> str:
+    match = re.search(r"No module named ['\"]([^'\"]+)['\"]", str(exc))
+    if match:
+        return match.group(1)
+    return ""
