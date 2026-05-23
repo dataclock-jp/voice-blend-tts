@@ -1,0 +1,1709 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Voice Blend TTS</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f5f6f2;
+      --ink: #1c2421;
+      --muted: #5d6b65;
+      --line: #d8ded7;
+      --panel: #ffffff;
+      --soft: #eef3ef;
+      --green: #14805f;
+      --green-deep: #0d5e47;
+      --teal: #14788f;
+      --red: #a3422f;
+      --gold: #9b741a;
+      --shadow: 0 18px 46px rgba(24, 38, 33, 0.11);
+      font-family: Inter, "Yu Gothic UI", "Hiragino Sans", Meiryo, system-ui, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.75), rgba(245, 246, 242, 0.96)),
+        repeating-linear-gradient(90deg, rgba(20, 128, 95, 0.055) 0 1px, transparent 1px 56px);
+      color: var(--ink);
+    }
+
+    button,
+    input,
+    select,
+    textarea {
+      font: inherit;
+    }
+
+    button {
+      border: 0;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.5;
+    }
+
+    .app {
+      width: min(1240px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 24px 0 34px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .mark {
+      width: 42px;
+      height: 42px;
+      display: grid;
+      place-items: center;
+      border-radius: 8px;
+      background: #17352c;
+      color: #ffffff;
+      box-shadow: var(--shadow);
+      flex: 0 0 auto;
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin-top: 0;
+    }
+
+    .brand h1 {
+      margin: 0;
+      font-size: clamp(1.35rem, 2vw, 2.2rem);
+      line-height: 1.05;
+      letter-spacing: 0;
+    }
+
+    .brand span {
+      display: block;
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 0.9rem;
+      line-height: 1.35;
+    }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 36px;
+      padding: 0 12px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.86);
+      color: var(--muted);
+      white-space: nowrap;
+      font-size: 0.9rem;
+      font-weight: 700;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--gold);
+    }
+
+    .status-pill.ready .status-dot {
+      background: var(--green);
+    }
+
+    .status-pill.error .status-dot {
+      background: var(--red);
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
+      gap: 18px;
+      align-items: start;
+    }
+
+    .panel {
+      background: rgba(255, 255, 255, 0.95);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+
+    .side,
+    .main {
+      display: grid;
+      gap: 14px;
+    }
+
+    .dropzone {
+      min-height: 254px;
+      padding: 22px;
+      display: grid;
+      align-content: center;
+      justify-items: center;
+      gap: 16px;
+      text-align: center;
+      border: 1px dashed #9bb4ab;
+      background: linear-gradient(135deg, rgba(20, 128, 95, 0.09), rgba(20, 120, 143, 0.08));
+      transition: border-color 150ms ease, background 150ms ease, transform 150ms ease;
+    }
+
+    .dropzone.dragging {
+      border-color: var(--green);
+      background: linear-gradient(135deg, rgba(20, 128, 95, 0.17), rgba(20, 120, 143, 0.13));
+      transform: translateY(-1px);
+    }
+
+    .drop-icon {
+      width: 58px;
+      height: 58px;
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      background: #ffffff;
+      color: var(--teal);
+      box-shadow: 0 12px 30px rgba(21, 35, 30, 0.12);
+    }
+
+    .dropzone strong {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 1.05rem;
+    }
+
+    .dropzone p,
+    .notice p {
+      margin-bottom: 0;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    .file-input {
+      position: absolute;
+      inline-size: 1px;
+      block-size: 1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
+    }
+
+    .primary-btn,
+    .ghost-btn,
+    .icon-btn {
+      min-height: 42px;
+      border-radius: 8px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      font-weight: 800;
+    }
+
+    .primary-btn {
+      padding: 0 16px;
+      color: #ffffff;
+      background: var(--green);
+    }
+
+    .primary-btn:hover:not(:disabled) {
+      background: var(--green-deep);
+    }
+
+    .ghost-btn {
+      padding: 0 14px;
+      color: var(--ink);
+      background: #ffffff;
+      border: 1px solid var(--line);
+    }
+
+    .ghost-btn:hover:not(:disabled) {
+      border-color: #b4c0bb;
+      background: var(--soft);
+    }
+
+    .icon-btn {
+      width: 38px;
+      height: 38px;
+      color: var(--muted);
+      background: transparent;
+      border: 1px solid transparent;
+    }
+
+    .icon-btn:hover:not(:disabled) {
+      color: var(--ink);
+      background: var(--soft);
+      border-color: var(--line);
+    }
+
+    .settings,
+    .tracks,
+    .composer,
+    .replacement,
+    .result,
+    .notice {
+      padding: 18px;
+    }
+
+    .settings h2,
+    .tracks h2,
+    .composer h2,
+    .replacement h2,
+    .result h2 {
+      margin: 0;
+      font-size: 1rem;
+      letter-spacing: 0;
+    }
+
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      margin-bottom: 14px;
+    }
+
+    .count {
+      min-width: 46px;
+      height: 30px;
+      padding: 0 10px;
+      border-radius: 999px;
+      background: var(--soft);
+      color: var(--green-deep);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+    }
+
+    .control-grid {
+      display: grid;
+      gap: 14px;
+    }
+
+    .field {
+      display: grid;
+      gap: 8px;
+    }
+
+    label,
+    .field-label {
+      color: var(--muted);
+      font-size: 0.9rem;
+      font-weight: 800;
+    }
+
+    input[type="number"],
+    select,
+    textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #ffffff;
+      color: var(--ink);
+    }
+
+    input[type="number"],
+    select {
+      min-height: 40px;
+      padding: 0 10px;
+    }
+
+    textarea {
+      min-height: 210px;
+      resize: vertical;
+      padding: 12px;
+      line-height: 1.58;
+    }
+
+    .checkbox {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #ffffff;
+      color: var(--ink);
+      line-height: 1.45;
+      font-size: 0.92rem;
+      font-weight: 700;
+    }
+
+    .checkbox input {
+      width: 20px;
+      height: 20px;
+      margin-top: 1px;
+      accent-color: var(--green);
+      flex: 0 0 auto;
+    }
+
+    .actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .track-list {
+      display: grid;
+      gap: 12px;
+      min-height: 174px;
+    }
+
+    .empty {
+      min-height: 174px;
+      display: grid;
+      place-items: center;
+      border: 1px dashed var(--line);
+      border-radius: 8px;
+      color: var(--muted);
+      text-align: center;
+      padding: 18px;
+      background: rgba(238, 244, 240, 0.46);
+    }
+
+    .track {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 12px;
+      align-items: center;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #ffffff;
+    }
+
+    .track-name {
+      margin: 0 0 4px;
+      overflow-wrap: anywhere;
+      font-weight: 800;
+      line-height: 1.25;
+    }
+
+    .track-meta {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.84rem;
+      line-height: 1.4;
+    }
+
+    .composer-grid,
+    .replacement-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 240px;
+      gap: 16px;
+      align-items: start;
+    }
+
+    .composer-side,
+    .replacement-side {
+      display: grid;
+      gap: 14px;
+    }
+
+    .source-picker {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: 10px;
+      align-items: center;
+    }
+
+    .source-name {
+      min-height: 42px;
+      display: flex;
+      align-items: center;
+      padding: 0 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #ffffff;
+      color: var(--muted);
+      overflow-wrap: anywhere;
+      line-height: 1.25;
+    }
+
+    .mic-status {
+      min-height: 76px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #ffffff;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    .vc-controls {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .vc-controls .ghost-btn,
+    .vc-controls .primary-btn {
+      padding-inline: 10px;
+    }
+
+    .ghost-btn.active {
+      border-color: rgba(163, 66, 47, 0.35);
+      background: rgba(163, 66, 47, 0.08);
+      color: var(--red);
+    }
+
+    .meter {
+      display: grid;
+      gap: 8px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #ffffff;
+    }
+
+    .meter span {
+      color: var(--muted);
+      font-size: 0.82rem;
+      font-weight: 800;
+    }
+
+    .meter strong {
+      overflow-wrap: anywhere;
+      font-size: 1rem;
+    }
+
+    .result-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 240px;
+      gap: 16px;
+      align-items: stretch;
+    }
+
+    .wave-shell {
+      min-height: 152px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0), rgba(20, 128, 95, 0.06)),
+        #fbfcfb;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 152px;
+    }
+
+    .result-side {
+      display: grid;
+      gap: 12px;
+      align-content: start;
+    }
+
+    audio {
+      width: 100%;
+    }
+
+    .toast {
+      min-height: 42px;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 0 12px;
+      border-radius: 8px;
+      background: #20342e;
+      color: #ffffff;
+      line-height: 1.35;
+      font-size: 0.92rem;
+    }
+
+    .toast.error {
+      background: #7a2e20;
+    }
+
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      border: 2px solid rgba(255, 255, 255, 0.35);
+      border-top-color: #ffffff;
+      animation: spin 700ms linear infinite;
+      flex: 0 0 auto;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    @media (max-width: 940px) {
+      .layout,
+      .composer-grid,
+      .replacement-grid,
+      .result-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 620px) {
+      .app {
+        width: min(100vw - 20px, 1240px);
+        padding-top: 14px;
+      }
+
+      .topbar {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .status-pill {
+        white-space: normal;
+      }
+
+      .dropzone,
+      .settings,
+      .tracks,
+      .composer,
+      .replacement,
+      .result,
+      .notice {
+        padding: 14px;
+      }
+
+      .actions {
+        grid-template-columns: 1fr;
+      }
+
+      .vc-controls {
+        grid-template-columns: 1fr;
+      }
+
+      .brand h1 {
+        font-size: 1.45rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="mark" aria-hidden="true">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3v12"></path>
+            <path d="M8 7v6"></path>
+            <path d="M16 7v6"></path>
+            <path d="M6 15c1.8 3 4 4.5 6 4.5S16.2 18 18 15"></path>
+          </svg>
+        </div>
+        <div>
+          <h1>Voice Blend TTS</h1>
+          <span>複数の参照音声から声質を作り、指定したセリフを生成</span>
+        </div>
+      </div>
+      <div class="status-pill" id="serverStatus">
+        <span class="status-dot" aria-hidden="true"></span>
+        <span id="serverStatusText">バックエンド確認中</span>
+      </div>
+    </header>
+
+    <main class="layout">
+      <aside class="side">
+        <section class="panel dropzone" id="dropzone">
+          <div class="drop-icon" aria-hidden="true">
+            <svg width="31" height="31" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 3v12"></path>
+              <path d="m7 10 5 5 5-5"></path>
+              <path d="M5 21h14"></path>
+            </svg>
+          </div>
+          <div>
+            <strong>参照音声を追加</strong>
+            <p>WAV / MP3 / M4A / OGG。各話者6〜30秒程度の自然な発話が扱いやすいです。</p>
+          </div>
+          <label class="primary-btn" for="fileInput">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <path d="m17 8-5-5-5 5"></path>
+              <path d="M12 3v12"></path>
+            </svg>
+            選択
+          </label>
+          <input class="file-input" id="fileInput" type="file" accept="audio/*" multiple>
+        </section>
+
+        <section class="panel settings">
+          <h2>生成設定</h2>
+          <div class="control-grid">
+            <div class="field">
+              <label for="language">言語</label>
+              <select id="language">
+                <option value="ja" selected>日本語</option>
+                <option value="en">English</option>
+                <option value="ko">한국어</option>
+                <option value="zh-cn">中文</option>
+                <option value="fr">Français</option>
+                <option value="de">Deutsch</option>
+                <option value="es">Español</option>
+                <option value="it">Italiano</option>
+                <option value="pt">Português</option>
+              </select>
+            </div>
+
+            <label class="checkbox">
+              <input id="splitSentences" type="checkbox" checked>
+              <span>長いセリフを文単位で分割して生成</span>
+            </label>
+
+            <label class="checkbox">
+              <input id="consent" type="checkbox">
+              <span>アップロードする音声の利用権限と本人の同意がある</span>
+            </label>
+          </div>
+        </section>
+
+        <section class="panel notice">
+          <p>音声はサーバー側の一時領域だけに保存され、生成レスポンス後に削除されます。声質の統合はモデル依存の近似で、完全な平均声や特定人物の再現を保証するものではありません。</p>
+        </section>
+      </aside>
+
+      <section class="main">
+        <section class="panel tracks">
+          <div class="panel-head">
+            <h2>参照音声</h2>
+            <span class="count" id="trackCount">0</span>
+          </div>
+          <div class="track-list" id="trackList">
+            <div class="empty">未選択</div>
+          </div>
+        </section>
+
+        <section class="panel composer">
+          <div class="panel-head">
+            <h2>セリフ</h2>
+            <span class="count" id="charCount">0</span>
+          </div>
+          <div class="composer-grid">
+            <div class="field">
+              <label for="scriptText">生成するテキスト</label>
+              <textarea id="scriptText" placeholder="ここに話させたいセリフを入力"></textarea>
+            </div>
+            <div class="composer-side">
+              <div class="meter">
+                <span>モデル</span>
+                <strong>XTTS v2</strong>
+              </div>
+              <div class="meter">
+                <span>参照数</span>
+                <strong id="referenceMetric">0件</strong>
+              </div>
+              <div class="actions">
+                <button class="primary-btn" id="generateButton" disabled>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M12 3v18"></path>
+                    <path d="M5 8v8"></path>
+                    <path d="M19 8v8"></path>
+                  </svg>
+                  生成
+                </button>
+                <button class="ghost-btn" id="clearButton">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M3 6h18"></path>
+                    <path d="M8 6V4h8v2"></path>
+                    <path d="M19 6l-1 14H6L5 6"></path>
+                  </svg>
+                  クリア
+                </button>
+              </div>
+              <div class="toast" id="message">参照音声とセリフを入力してください。</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel replacement">
+          <div class="panel-head">
+            <h2>音声置換</h2>
+            <span class="count" id="sttBadge">STT</span>
+          </div>
+          <div class="replacement-grid">
+            <div class="field">
+              <label for="sourceAudioInput">置換元のユーザー音声</label>
+              <div class="source-picker">
+                <label class="ghost-btn" for="sourceAudioInput">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <path d="m17 8-5-5-5 5"></path>
+                    <path d="M12 3v12"></path>
+                  </svg>
+                  音声選択
+                </label>
+                <span class="source-name" id="sourceAudioName">未選択</span>
+              </div>
+              <input class="file-input" id="sourceAudioInput" type="file" accept="audio/*">
+              <button class="primary-btn" id="transcribeButton" disabled>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M12 3v18"></path>
+                  <path d="M4 7h16"></path>
+                  <path d="M4 17h10"></path>
+                </svg>
+                文字起こし
+              </button>
+            </div>
+            <div class="replacement-side">
+              <div class="vc-controls">
+                <button class="ghost-btn" id="prepareVcButton" disabled>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M4 13a8 8 0 0 1 16 0"></path>
+                    <path d="M8 17h8"></path>
+                    <path d="M10 21h4"></path>
+                    <path d="M12 3v3"></path>
+                  </svg>
+                  VC準備
+                </button>
+                <button class="primary-btn" id="convertFileButton" disabled>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M4 12h10"></path>
+                    <path d="m11 6 6 6-6 6"></path>
+                    <path d="M20 6v12"></path>
+                  </svg>
+                  VC変換
+                </button>
+                <button class="ghost-btn" id="stopRealtimeVcButton" disabled>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <rect x="6" y="6" width="12" height="12" rx="2"></rect>
+                  </svg>
+                  VC停止
+                </button>
+              </div>
+              <button class="primary-btn" id="startRealtimeVcButton" disabled>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z"></path>
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                  <path d="M12 19v2"></path>
+                </svg>
+                リアルタイムVC開始
+              </button>
+              <div class="actions">
+                <button class="ghost-btn" id="micStartButton">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z"></path>
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                    <path d="M12 19v2"></path>
+                  </svg>
+                  マイク
+                </button>
+                <button class="ghost-btn" id="micStopButton" disabled>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <rect x="6" y="6" width="12" height="12" rx="2"></rect>
+                  </svg>
+                  停止
+                </button>
+              </div>
+              <label class="checkbox">
+                <input id="autoGenerateMic" type="checkbox">
+                <span>マイクの確定発話を逐次生成</span>
+              </label>
+              <div class="mic-status" id="micStatus">待機中</div>
+              <div class="mic-status" id="vcStatus">VC未準備</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel result">
+          <div class="panel-head">
+            <h2>生成結果</h2>
+            <span class="count" id="durationBadge">0:00</span>
+          </div>
+          <div class="result-grid">
+            <div class="wave-shell">
+              <canvas id="waveCanvas" width="900" height="220" aria-label="生成音声の波形"></canvas>
+            </div>
+            <div class="result-side">
+              <audio id="preview" controls></audio>
+              <div class="meter">
+                <span>ファイル</span>
+                <strong id="fileMetric">なし</strong>
+              </div>
+              <button class="primary-btn" id="downloadButton" disabled>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <path d="M7 10l5 5 5-5"></path>
+                  <path d="M12 15V3"></path>
+                </svg>
+                ダウンロード
+              </button>
+            </div>
+          </div>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const state = {
+      files: [],
+      sourceAudioFile: null,
+      outputUrl: "",
+      outputName: "",
+      busy: false,
+      backendReady: false,
+      vcReady: false,
+      sttReady: false,
+      vcProfileId: "",
+      vcBusy: false,
+      vcStream: null,
+      vcRecorder: null,
+      vcQueue: [],
+      vcProcessing: false,
+      vcPlaybackContext: null,
+      vcPlaybackTime: 0,
+      recognition: null,
+      listening: false,
+      liveQueue: [],
+      liveProcessing: false
+    };
+
+    const nodes = {
+      serverStatus: document.getElementById("serverStatus"),
+      serverStatusText: document.getElementById("serverStatusText"),
+      dropzone: document.getElementById("dropzone"),
+      fileInput: document.getElementById("fileInput"),
+      trackList: document.getElementById("trackList"),
+      trackCount: document.getElementById("trackCount"),
+      referenceMetric: document.getElementById("referenceMetric"),
+      language: document.getElementById("language"),
+      splitSentences: document.getElementById("splitSentences"),
+      consent: document.getElementById("consent"),
+      scriptText: document.getElementById("scriptText"),
+      charCount: document.getElementById("charCount"),
+      generateButton: document.getElementById("generateButton"),
+      clearButton: document.getElementById("clearButton"),
+      sourceAudioInput: document.getElementById("sourceAudioInput"),
+      sourceAudioName: document.getElementById("sourceAudioName"),
+      transcribeButton: document.getElementById("transcribeButton"),
+      micStartButton: document.getElementById("micStartButton"),
+      micStopButton: document.getElementById("micStopButton"),
+      autoGenerateMic: document.getElementById("autoGenerateMic"),
+      micStatus: document.getElementById("micStatus"),
+      sttBadge: document.getElementById("sttBadge"),
+      prepareVcButton: document.getElementById("prepareVcButton"),
+      convertFileButton: document.getElementById("convertFileButton"),
+      startRealtimeVcButton: document.getElementById("startRealtimeVcButton"),
+      stopRealtimeVcButton: document.getElementById("stopRealtimeVcButton"),
+      vcStatus: document.getElementById("vcStatus"),
+      message: document.getElementById("message"),
+      preview: document.getElementById("preview"),
+      canvas: document.getElementById("waveCanvas"),
+      durationBadge: document.getElementById("durationBadge"),
+      fileMetric: document.getElementById("fileMetric"),
+      downloadButton: document.getElementById("downloadButton")
+    };
+
+    function setMessage(text, type = "info", loading = false) {
+      nodes.message.classList.toggle("error", type === "error");
+      nodes.message.innerHTML = "";
+      if (loading) {
+        const spinner = document.createElement("span");
+        spinner.className = "spinner";
+        spinner.setAttribute("aria-hidden", "true");
+        nodes.message.appendChild(spinner);
+      }
+      nodes.message.append(document.createTextNode(text));
+    }
+
+    function setBackendStatus(status) {
+      state.backendReady = status.ready;
+      state.sttReady = Boolean(status.stt_ready);
+      state.vcReady = Boolean(status.vc_ready);
+      nodes.serverStatus.classList.toggle("ready", status.ready);
+      nodes.serverStatus.classList.toggle("error", !status.ready);
+      nodes.serverStatusText.textContent = status.ready ? `準備完了 (${status.device})` : status.message;
+      nodes.sttBadge.textContent = state.sttReady ? "Whisper" : "Web";
+      updateButtons();
+    }
+
+    async function checkBackend() {
+      try {
+        const response = await fetch("/api/status");
+        if (!response.ok) {
+          throw new Error("バックエンド未起動");
+        }
+        setBackendStatus(await response.json());
+      } catch (error) {
+        setBackendStatus({ ready: false, message: "バックエンド未起動", device: "-" });
+      }
+    }
+
+    function updateButtons() {
+      const hasFiles = state.files.length > 0;
+      const hasText = nodes.scriptText.value.trim().length > 0;
+      const supportsMic = Boolean(window.SpeechRecognition || window.webkitSpeechRecognition);
+      const supportsMediaRecorder = Boolean(navigator.mediaDevices && window.MediaRecorder);
+      nodes.generateButton.disabled = !state.backendReady || !hasFiles || !hasText || !nodes.consent.checked || state.busy;
+      nodes.transcribeButton.disabled = !state.backendReady || !state.sttReady || !state.sourceAudioFile || !nodes.consent.checked || state.busy;
+      nodes.prepareVcButton.disabled = !state.backendReady || !state.vcReady || !hasFiles || !nodes.consent.checked || state.busy || state.vcBusy;
+      nodes.convertFileButton.disabled = !state.backendReady || !state.vcReady || !state.sourceAudioFile || !nodes.consent.checked || state.busy || state.vcBusy;
+      nodes.startRealtimeVcButton.disabled = !state.backendReady || !state.vcReady || !supportsMediaRecorder || !nodes.consent.checked || state.vcBusy;
+      nodes.stopRealtimeVcButton.disabled = !state.vcBusy;
+      nodes.startRealtimeVcButton.classList.toggle("active", state.vcBusy);
+      nodes.micStartButton.disabled = !supportsMic || state.listening || !nodes.consent.checked || state.vcBusy;
+      nodes.micStopButton.disabled = !state.listening;
+      nodes.micStartButton.classList.toggle("active", state.listening);
+      nodes.downloadButton.disabled = !state.outputUrl || state.busy;
+    }
+
+    function formatBytes(bytes) {
+      if (!bytes) return "0 B";
+      const units = ["B", "KB", "MB", "GB"];
+      let value = bytes;
+      let unitIndex = 0;
+      while (value >= 1024 && unitIndex < units.length - 1) {
+        value /= 1024;
+        unitIndex += 1;
+      }
+      return `${value.toFixed(value >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
+    }
+
+    function formatTime(seconds) {
+      const safe = Math.max(0, Number.isFinite(seconds) ? seconds : 0);
+      const minutes = Math.floor(safe / 60);
+      const rest = Math.floor(safe % 60).toString().padStart(2, "0");
+      return `${minutes}:${rest}`;
+    }
+
+    function setScriptText(text, append = false) {
+      const next = text.trim();
+      if (!next) return;
+      if (append && nodes.scriptText.value.trim()) {
+        const current = nodes.scriptText.value.trimEnd();
+        nodes.scriptText.value = `${current}\n${next}`;
+      } else {
+        nodes.scriptText.value = next;
+      }
+      nodes.charCount.textContent = nodes.scriptText.value.length.toString();
+      resetOutput();
+      updateButtons();
+    }
+
+    function resetVcProfile(message = "VC未準備") {
+      state.vcProfileId = "";
+      nodes.vcStatus.textContent = message;
+      updateButtons();
+    }
+
+    function renderFiles() {
+      nodes.trackCount.textContent = state.files.length.toString();
+      nodes.referenceMetric.textContent = `${state.files.length}件`;
+      nodes.trackList.innerHTML = "";
+
+      if (!state.files.length) {
+        const empty = document.createElement("div");
+        empty.className = "empty";
+        empty.textContent = "未選択";
+        nodes.trackList.appendChild(empty);
+        updateButtons();
+        return;
+      }
+
+      state.files.forEach((file, index) => {
+        const item = document.createElement("article");
+        item.className = "track";
+
+        const body = document.createElement("div");
+        const name = document.createElement("p");
+        name.className = "track-name";
+        name.textContent = file.name;
+        const meta = document.createElement("p");
+        meta.className = "track-meta";
+        meta.textContent = `${file.type || "audio"} / ${formatBytes(file.size)}`;
+        body.append(name, meta);
+
+        const remove = document.createElement("button");
+        remove.className = "icon-btn";
+        remove.type = "button";
+        remove.title = "削除";
+        remove.setAttribute("aria-label", `${file.name}を削除`);
+        remove.innerHTML = `
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3 6h18"></path>
+            <path d="M8 6V4h8v2"></path>
+            <path d="M19 6l-1 14H6L5 6"></path>
+            <path d="M10 11v5"></path>
+            <path d="M14 11v5"></path>
+          </svg>
+        `;
+        remove.addEventListener("click", () => {
+          state.files.splice(index, 1);
+          renderFiles();
+          resetOutput();
+          resetVcProfile("参照音声が変わりました。VC準備を再実行してください。");
+          setMessage("参照音声を削除しました。");
+        });
+
+        item.append(body, remove);
+        nodes.trackList.appendChild(item);
+      });
+
+      updateButtons();
+    }
+
+    function addFiles(fileList) {
+      const incoming = Array.from(fileList).filter((file) => file.type.startsWith("audio/") || /\.(wav|mp3|m4a|aac|ogg|flac)$/i.test(file.name));
+      if (!incoming.length) {
+        setMessage("対応する音声ファイルがありません。", "error");
+        return;
+      }
+      state.files.push(...incoming);
+      renderFiles();
+      resetOutput();
+      resetVcProfile("参照音声が変わりました。VC準備を再実行してください。");
+      setMessage(`${incoming.length}件を追加しました。`);
+    }
+
+    function resetOutput() {
+      if (state.outputUrl) {
+        URL.revokeObjectURL(state.outputUrl);
+      }
+      state.outputUrl = "";
+      state.outputName = "";
+      nodes.preview.removeAttribute("src");
+      nodes.preview.load();
+      nodes.fileMetric.textContent = "なし";
+      nodes.durationBadge.textContent = "0:00";
+      drawEmptyWave();
+      updateButtons();
+    }
+
+    async function generate() {
+      const text = nodes.scriptText.value.trim();
+      await generateText(text, "生成が完了しました。");
+    }
+
+    async function generateText(text, doneMessage) {
+      if (!text || !state.files.length || !nodes.consent.checked) {
+        updateButtons();
+        return false;
+      }
+
+      state.busy = true;
+      resetOutput();
+      updateButtons();
+      setMessage("特徴量を抽出して音声を生成中...", "info", true);
+
+      const form = new FormData();
+      form.append("text", text);
+      form.append("language", nodes.language.value);
+      form.append("split_sentences", nodes.splitSentences.checked ? "true" : "false");
+      form.append("consent_confirmed", nodes.consent.checked ? "true" : "false");
+      state.files.forEach((file) => form.append("voice_files", file, file.name));
+
+      try {
+        const response = await fetch("/api/synthesize", {
+          method: "POST",
+          body: form
+        });
+
+        if (!response.ok) {
+          let detail = "生成に失敗しました。";
+          try {
+            const payload = await response.json();
+            detail = payload.detail || detail;
+          } catch (error) {
+            detail = await response.text();
+          }
+          throw new Error(detail);
+        }
+
+        const blob = await response.blob();
+        const outputName = response.headers.get("x-output-filename") || `voice-blend-${Date.now()}.wav`;
+        state.outputUrl = URL.createObjectURL(blob);
+        state.outputName = outputName;
+        nodes.preview.src = state.outputUrl;
+        nodes.fileMetric.textContent = outputName;
+        setMessage(doneMessage);
+        updateButtons();
+        await loadPreviewMetadata();
+        await drawBlobWave(blob);
+        return true;
+      } catch (error) {
+        setMessage(error.message || "生成に失敗しました。", "error");
+        return false;
+      } finally {
+        state.busy = false;
+        updateButtons();
+      }
+    }
+
+    async function transcribeSourceAudio() {
+      if (!state.sourceAudioFile || !nodes.consent.checked || !state.sttReady) {
+        updateButtons();
+        return;
+      }
+
+      state.busy = true;
+      updateButtons();
+      setMessage("置換元音声を文字起こし中...", "info", true);
+
+      const form = new FormData();
+      form.append("language", nodes.language.value);
+      form.append("consent_confirmed", nodes.consent.checked ? "true" : "false");
+      form.append("source_audio", state.sourceAudioFile, state.sourceAudioFile.name);
+
+      try {
+        const response = await fetch("/api/transcribe", {
+          method: "POST",
+          body: form
+        });
+
+        if (!response.ok) {
+          let detail = "文字起こしに失敗しました。";
+          try {
+            const payload = await response.json();
+            detail = payload.detail || detail;
+          } catch (error) {
+            detail = await response.text();
+          }
+          throw new Error(detail);
+        }
+
+        const payload = await response.json();
+        setScriptText(payload.text);
+        setMessage("文字起こしをセリフへ反映しました。");
+      } catch (error) {
+        setMessage(error.message || "文字起こしに失敗しました。", "error");
+      } finally {
+        state.busy = false;
+        updateButtons();
+      }
+    }
+
+    async function ensureVcProfile() {
+      if (state.vcProfileId) {
+        return state.vcProfileId;
+      }
+      return prepareVcProfile();
+    }
+
+    async function prepareVcProfile() {
+      if (!state.files.length || !nodes.consent.checked || !state.vcReady) {
+        updateButtons();
+        return "";
+      }
+
+      state.busy = true;
+      updateButtons();
+      nodes.vcStatus.textContent = "混合声のVCターゲットを生成中...";
+      setMessage("VCプロファイルを準備中...", "info", true);
+
+      const form = new FormData();
+      form.append("language", nodes.language.value);
+      form.append("split_sentences", nodes.splitSentences.checked ? "true" : "false");
+      form.append("consent_confirmed", nodes.consent.checked ? "true" : "false");
+      state.files.forEach((file) => form.append("voice_files", file, file.name));
+
+      try {
+        const response = await fetch("/api/vc/profile", {
+          method: "POST",
+          body: form
+        });
+
+        if (!response.ok) {
+          let detail = "VC準備に失敗しました。";
+          try {
+            const payload = await response.json();
+            detail = payload.detail || detail;
+          } catch (error) {
+            detail = await response.text();
+          }
+          throw new Error(detail);
+        }
+
+        const payload = await response.json();
+        state.vcProfileId = payload.profile_id;
+        nodes.vcStatus.textContent = "VC準備完了";
+        setMessage("VCプロファイルを準備しました。");
+        return state.vcProfileId;
+      } catch (error) {
+        resetVcProfile(error.message || "VC準備に失敗しました。");
+        setMessage(error.message || "VC準備に失敗しました。", "error");
+        return "";
+      } finally {
+        state.busy = false;
+        updateButtons();
+      }
+    }
+
+    async function convertSourceVoiceFile() {
+      if (!state.sourceAudioFile || !nodes.consent.checked) {
+        updateButtons();
+        return;
+      }
+      const profileId = await ensureVcProfile();
+      if (!profileId) return;
+
+      state.busy = true;
+      resetOutput();
+      updateButtons();
+      nodes.vcStatus.textContent = "ファイルをVC変換中...";
+      setMessage("音声対音声でVC変換中...", "info", true);
+
+      try {
+        const blob = await convertAudioBlob(state.sourceAudioFile, state.sourceAudioFile.name);
+        const outputName = `voice-converted-${Date.now()}.wav`;
+        state.outputUrl = URL.createObjectURL(blob);
+        state.outputName = outputName;
+        nodes.preview.src = state.outputUrl;
+        nodes.fileMetric.textContent = outputName;
+        nodes.vcStatus.textContent = "VC変換完了";
+        setMessage("VC変換が完了しました。");
+        updateButtons();
+        await loadPreviewMetadata();
+        await drawBlobWave(blob);
+      } catch (error) {
+        nodes.vcStatus.textContent = error.message || "VC変換に失敗しました。";
+        setMessage(error.message || "VC変換に失敗しました。", "error");
+      } finally {
+        state.busy = false;
+        updateButtons();
+      }
+    }
+
+    async function convertAudioBlob(blob, filename) {
+      const form = new FormData();
+      form.append("profile_id", state.vcProfileId);
+      form.append("consent_confirmed", nodes.consent.checked ? "true" : "false");
+      form.append("source_audio", blob, filename);
+      const response = await fetch("/api/vc/convert", {
+        method: "POST",
+        body: form
+      });
+
+      if (!response.ok) {
+        let detail = "VC変換に失敗しました。";
+        try {
+          const payload = await response.json();
+          detail = payload.detail || detail;
+        } catch (error) {
+          detail = await response.text();
+        }
+        throw new Error(detail);
+      }
+
+      return response.blob();
+    }
+
+    function mediaRecorderMimeType() {
+      const options = [
+        "audio/webm;codecs=opus",
+        "audio/webm",
+        "audio/ogg;codecs=opus",
+        "audio/ogg"
+      ];
+      return options.find((type) => MediaRecorder.isTypeSupported(type)) || "";
+    }
+
+    async function startRealtimeVc() {
+      const profileId = await ensureVcProfile();
+      if (!profileId) return;
+      stopMicRecognition();
+
+      try {
+        state.vcStream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          }
+        });
+        const mimeType = mediaRecorderMimeType();
+        state.vcRecorder = new MediaRecorder(state.vcStream, mimeType ? { mimeType } : undefined);
+        state.vcQueue = [];
+        state.vcProcessing = false;
+        state.vcBusy = true;
+        nodes.vcStatus.textContent = "リアルタイムVC入力中";
+        updateButtons();
+
+        state.vcRecorder.addEventListener("dataavailable", (event) => {
+          if (event.data && event.data.size > 0 && state.vcBusy) {
+            state.vcQueue.push({
+              blob: event.data,
+              name: `chunk-${Date.now()}.${mimeType.includes("ogg") ? "ogg" : "webm"}`,
+              queuedAt: performance.now()
+            });
+            processVcQueue();
+          }
+        });
+
+        state.vcRecorder.addEventListener("stop", () => {
+          if (state.vcStream) {
+            state.vcStream.getTracks().forEach((track) => track.stop());
+          }
+          state.vcStream = null;
+        });
+
+        state.vcRecorder.start(3000);
+      } catch (error) {
+        state.vcBusy = false;
+        nodes.vcStatus.textContent = "マイクを開始できませんでした。";
+        setMessage(error.message || "マイクを開始できませんでした。", "error");
+        updateButtons();
+      }
+    }
+
+    function stopRealtimeVc() {
+      state.vcBusy = false;
+      state.vcQueue = [];
+      if (state.vcRecorder && state.vcRecorder.state !== "inactive") {
+        state.vcRecorder.stop();
+      }
+      if (state.vcStream) {
+        state.vcStream.getTracks().forEach((track) => track.stop());
+        state.vcStream = null;
+      }
+      nodes.vcStatus.textContent = state.vcProfileId ? "VC準備完了" : "VC未準備";
+      updateButtons();
+    }
+
+    async function processVcQueue() {
+      if (state.vcProcessing || !state.vcQueue.length || !state.vcProfileId) return;
+      state.vcProcessing = true;
+
+      while (state.vcBusy && state.vcQueue.length) {
+        const item = state.vcQueue.shift();
+        try {
+          const converted = await convertAudioBlob(item.blob, item.name);
+          const latency = Math.round(performance.now() - item.queuedAt);
+          nodes.vcStatus.textContent = `リアルタイムVC変換中 / 遅延 ${latency}ms / 待ち ${state.vcQueue.length}`;
+          await playConvertedChunk(converted);
+        } catch (error) {
+          nodes.vcStatus.textContent = error.message || "VC変換に失敗しました。";
+          setMessage(error.message || "VC変換に失敗しました。", "error");
+          stopRealtimeVc();
+          break;
+        }
+      }
+
+      state.vcProcessing = false;
+    }
+
+    async function playConvertedChunk(blob) {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextClass) return;
+      if (!state.vcPlaybackContext) {
+        state.vcPlaybackContext = new AudioContextClass();
+        state.vcPlaybackTime = state.vcPlaybackContext.currentTime;
+      }
+      const buffer = await state.vcPlaybackContext.decodeAudioData(await blob.arrayBuffer());
+      const source = state.vcPlaybackContext.createBufferSource();
+      source.buffer = buffer;
+      source.connect(state.vcPlaybackContext.destination);
+      const startAt = Math.max(state.vcPlaybackContext.currentTime + 0.05, state.vcPlaybackTime);
+      source.start(startAt);
+      state.vcPlaybackTime = startAt + buffer.duration;
+    }
+
+    function recognitionLanguage() {
+      const map = {
+        ja: "ja-JP",
+        en: "en-US",
+        ko: "ko-KR",
+        "zh-cn": "zh-CN",
+        fr: "fr-FR",
+        de: "de-DE",
+        es: "es-ES",
+        it: "it-IT",
+        pt: "pt-PT"
+      };
+      return map[nodes.language.value] || "ja-JP";
+    }
+
+    function startMicRecognition() {
+      const SpeechRecognitionClass = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRecognitionClass) {
+        setMessage("このブラウザはマイク音声認識に対応していません。", "error");
+        return;
+      }
+      if (!nodes.consent.checked) {
+        setMessage("音声利用の権限と同意を確認してください。", "error");
+        return;
+      }
+
+      const recognition = new SpeechRecognitionClass();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = recognitionLanguage();
+
+      recognition.onstart = () => {
+        state.listening = true;
+        nodes.micStatus.textContent = "聞き取り中";
+        updateButtons();
+      };
+
+      recognition.onresult = (event) => {
+        let interim = "";
+        let finalText = "";
+        for (let i = event.resultIndex; i < event.results.length; i += 1) {
+          const result = event.results[i];
+          const transcript = result[0].transcript.trim();
+          if (result.isFinal) {
+            finalText += transcript;
+          } else {
+            interim += transcript;
+          }
+        }
+        if (interim) {
+          nodes.micStatus.textContent = interim;
+        }
+        if (finalText) {
+          setScriptText(finalText, true);
+          nodes.micStatus.textContent = finalText;
+          if (nodes.autoGenerateMic.checked) {
+            enqueueLiveGeneration(finalText);
+          }
+        }
+      };
+
+      recognition.onerror = (event) => {
+        nodes.micStatus.textContent = event.error || "マイク入力エラー";
+        if (event.error === "not-allowed") {
+          state.listening = false;
+        }
+        updateButtons();
+      };
+
+      recognition.onend = () => {
+        if (state.listening) {
+          try {
+            recognition.start();
+          } catch (error) {
+            state.listening = false;
+          }
+        }
+        if (!state.listening) {
+          nodes.micStatus.textContent = "待機中";
+          updateButtons();
+        }
+      };
+
+      state.recognition = recognition;
+      try {
+        recognition.start();
+      } catch (error) {
+        setMessage("マイクを開始できませんでした。", "error");
+      }
+    }
+
+    function stopMicRecognition() {
+      state.listening = false;
+      if (state.recognition) {
+        state.recognition.stop();
+      }
+      nodes.micStatus.textContent = "待機中";
+      updateButtons();
+    }
+
+    function enqueueLiveGeneration(text) {
+      state.liveQueue.push(text.trim());
+      processLiveQueue();
+    }
+
+    async function processLiveQueue() {
+      if (state.liveProcessing || state.busy || !state.liveQueue.length) return;
+      state.liveProcessing = true;
+      const next = state.liveQueue.shift();
+      await generateText(next, "発話を置換しました。");
+      state.liveProcessing = false;
+      if (state.liveQueue.length) {
+        processLiveQueue();
+      }
+    }
+
+    function loadPreviewMetadata() {
+      return new Promise((resolve) => {
+        nodes.preview.onloadedmetadata = () => {
+          nodes.durationBadge.textContent = formatTime(nodes.preview.duration);
+          resolve();
+        };
+        setTimeout(resolve, 1200);
+      });
+    }
+
+    function downloadOutput() {
+      if (!state.outputUrl) return;
+      const anchor = document.createElement("a");
+      anchor.href = state.outputUrl;
+      anchor.download = state.outputName || "voice-blend.wav";
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+    }
+
+    async function drawBlobWave(blob) {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextClass) {
+        drawEmptyWave("No waveform");
+        return;
+      }
+      try {
+        const context = new AudioContextClass();
+        const buffer = await context.decodeAudioData(await blob.arrayBuffer());
+        drawWave(buffer);
+        await context.close();
+      } catch (error) {
+        drawEmptyWave("No waveform");
+      }
+    }
+
+    function drawEmptyWave(text = "No preview") {
+      const context = nodes.canvas.getContext("2d");
+      const { width, height } = nodes.canvas;
+      context.clearRect(0, 0, width, height);
+      context.fillStyle = "#fbfcfb";
+      context.fillRect(0, 0, width, height);
+      context.strokeStyle = "#d9dfd8";
+      context.lineWidth = 1;
+      context.beginPath();
+      context.moveTo(0, height / 2);
+      context.lineTo(width, height / 2);
+      context.stroke();
+      context.fillStyle = "#63706b";
+      context.font = "700 18px system-ui, sans-serif";
+      context.textAlign = "center";
+      context.fillText(text, width / 2, height / 2 - 16);
+    }
+
+    function drawWave(buffer) {
+      const context = nodes.canvas.getContext("2d");
+      const { width, height } = nodes.canvas;
+      const data = buffer.getChannelData(0);
+      const step = Math.ceil(data.length / width);
+      const middle = height / 2;
+
+      context.clearRect(0, 0, width, height);
+      const gradient = context.createLinearGradient(0, 0, width, height);
+      gradient.addColorStop(0, "#f8fbfa");
+      gradient.addColorStop(1, "#eef4f0");
+      context.fillStyle = gradient;
+      context.fillRect(0, 0, width, height);
+
+      context.strokeStyle = "#d3dcd7";
+      context.lineWidth = 1;
+      context.beginPath();
+      context.moveTo(0, middle);
+      context.lineTo(width, middle);
+      context.stroke();
+
+      context.strokeStyle = "#14805f";
+      context.lineWidth = 2;
+      context.beginPath();
+
+      for (let x = 0; x < width; x += 1) {
+        let min = 1;
+        let max = -1;
+        const start = x * step;
+        const end = Math.min(start + step, data.length);
+        for (let i = start; i < end; i += 1) {
+          const value = data[i];
+          if (value < min) min = value;
+          if (value > max) max = value;
+        }
+        context.moveTo(x, middle + min * middle * 0.88);
+        context.lineTo(x, middle + max * middle * 0.88);
+      }
+      context.stroke();
+    }
+
+    nodes.fileInput.addEventListener("change", (event) => {
+      addFiles(event.target.files);
+      nodes.fileInput.value = "";
+    });
+
+    for (const eventName of ["dragenter", "dragover"]) {
+      nodes.dropzone.addEventListener(eventName, (event) => {
+        event.preventDefault();
+        nodes.dropzone.classList.add("dragging");
+      });
+    }
+
+    for (const eventName of ["dragleave", "drop"]) {
+      nodes.dropzone.addEventListener(eventName, (event) => {
+        event.preventDefault();
+        nodes.dropzone.classList.remove("dragging");
+      });
+    }
+
+    nodes.dropzone.addEventListener("drop", (event) => {
+      addFiles(event.dataTransfer.files);
+    });
+
+    nodes.sourceAudioInput.addEventListener("change", (event) => {
+      state.sourceAudioFile = event.target.files[0] || null;
+      nodes.sourceAudioName.textContent = state.sourceAudioFile ? state.sourceAudioFile.name : "未選択";
+      updateButtons();
+    });
+
+    nodes.scriptText.addEventListener("input", () => {
+      nodes.charCount.textContent = nodes.scriptText.value.length.toString();
+      resetOutput();
+      updateButtons();
+    });
+    nodes.consent.addEventListener("change", updateButtons);
+    nodes.language.addEventListener("change", () => {
+      resetOutput();
+      resetVcProfile("言語が変わりました。VC準備を再実行してください。");
+    });
+    nodes.splitSentences.addEventListener("change", () => {
+      resetOutput();
+      resetVcProfile("生成設定が変わりました。VC準備を再実行してください。");
+    });
+    nodes.generateButton.addEventListener("click", generate);
+    nodes.transcribeButton.addEventListener("click", transcribeSourceAudio);
+    nodes.prepareVcButton.addEventListener("click", prepareVcProfile);
+    nodes.convertFileButton.addEventListener("click", convertSourceVoiceFile);
+    nodes.startRealtimeVcButton.addEventListener("click", startRealtimeVc);
+    nodes.stopRealtimeVcButton.addEventListener("click", stopRealtimeVc);
+    nodes.micStartButton.addEventListener("click", startMicRecognition);
+    nodes.micStopButton.addEventListener("click", stopMicRecognition);
+    nodes.downloadButton.addEventListener("click", downloadOutput);
+    nodes.clearButton.addEventListener("click", () => {
+      stopRealtimeVc();
+      state.files = [];
+      state.sourceAudioFile = null;
+      state.liveQueue = [];
+      state.vcQueue = [];
+      nodes.sourceAudioInput.value = "";
+      nodes.sourceAudioName.textContent = "未選択";
+      nodes.scriptText.value = "";
+      nodes.charCount.textContent = "0";
+      stopMicRecognition();
+      resetVcProfile("VC未準備");
+      renderFiles();
+      resetOutput();
+      setMessage("クリアしました。");
+    });
+
+    drawEmptyWave();
+    renderFiles();
+    checkBackend();
+  </script>
+</body>
+</html>
