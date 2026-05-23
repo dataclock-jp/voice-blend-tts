@@ -370,6 +370,8 @@ def _get_tts_model():
     if _tts_model is not None:
         return _tts_model
 
+    _configure_torch_safe_loading()
+
     from TTS.api import TTS
 
     model = TTS(MODEL_NAME)
@@ -382,11 +384,29 @@ def _get_vc_model():
     if _vc_model is not None:
         return _vc_model
 
+    _configure_torch_safe_loading()
+
     from TTS.api import TTS
 
     model = TTS(model_name=VC_MODEL_NAME, progress_bar=False)
     _vc_model = model.to(_device())
     return _vc_model
+
+
+def _configure_torch_safe_loading() -> None:
+    try:
+        import torch
+        from TTS.config.shared_configs import BaseDatasetConfig
+        from TTS.tts.configs.xtts_config import XttsConfig
+        from TTS.tts.models.xtts import XttsArgs, XttsAudioConfig
+    except Exception:
+        return
+
+    add_safe_globals = getattr(torch.serialization, "add_safe_globals", None)
+    if add_safe_globals is None:
+        return
+
+    add_safe_globals([XttsConfig, XttsAudioConfig, XttsArgs, BaseDatasetConfig])
 
 
 def _transcribe_file(audio_path: str, language: str) -> str:

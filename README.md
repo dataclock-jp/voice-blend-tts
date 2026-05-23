@@ -57,6 +57,8 @@ python -c "import torch; print(torch.__version__); print(torch.version.cuda); pr
 pip install "transformers==4.33.3"
 ```
 
+`Weights only load failed` と `XttsConfig was not an allowed global` が出る場合は、PyTorch 2.6以降の安全ロード制約により古いXTTSチェックポイントが止まっています。このアプリでは公式XTTSモデルを信頼する前提で、必要なCoqui設定クラスを `torch.serialization.add_safe_globals` に登録して読み込みます。最新版へ更新してからサーバーを再起動してください。
+
 ## 使い方
 
 1. 参照音声を複数アップロードします。
