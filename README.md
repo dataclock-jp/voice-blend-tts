@@ -49,6 +49,14 @@ python -c "import torch; print(torch.__version__); print(torch.version.cuda); pr
 
 `torch.cuda.is_available()` が `True` なら、画面のステータスは `準備完了 (cuda)` になります。
 
+## Troubleshooting
+
+`cannot import name 'BeamSearchScorer' from 'transformers'` が出る場合は、Coqui TTSと互換性のないTransformers 5系が入っています。次で固定してください。
+
+```powershell
+pip install "transformers==4.33.3"
+```
+
 ## 使い方
 
 1. 参照音声を複数アップロードします。
