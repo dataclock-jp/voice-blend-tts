@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import re
 import shutil
@@ -19,6 +20,7 @@ BASE_DIR = Path(__file__).resolve().parent
 MODEL_NAME = os.getenv("VOICE_BLEND_MODEL", "tts_models/multilingual/multi-dataset/xtts_v2")
 VC_MODEL_NAME = os.getenv("VOICE_BLEND_VC_MODEL", "voice_conversion_models/multilingual/vctk/freevc24")
 MAX_REFERENCE_FILES = int(os.getenv("VOICE_BLEND_MAX_FILES", "12"))
+MAX_WEIGHT_REPETITIONS_PER_FILE = int(os.getenv("VOICE_BLEND_MAX_WEIGHT_REPETITIONS", "8"))
 MAX_TOTAL_UPLOAD_MB = int(os.getenv("VOICE_BLEND_MAX_TOTAL_MB", "250"))
 MAX_TOTAL_UPLOAD_BYTES = MAX_TOTAL_UPLOAD_MB * 1024 * 1024
 SUPPORTED_EXTENSIONS = {".wav", ".mp3", ".m4a", ".aac", ".ogg", ".flac", ".webm"}
@@ -111,6 +113,7 @@ async def synthesize(
     language: str = Form("ja"),
     split_sentences: bool = Form(True),
     consent_confirmed: bool = Form(False),
+    voice_weights: str = Form(""),
     voice_files: list[UploadFile] = File(...),
 ) -> FileResponse:
     text = text.strip()
@@ -127,7 +130,9 @@ async def synthesize(
 
     work_dir = Path(tempfile.mkdtemp(prefix="voice-blend-"))
     try:
+        weights = _parse_voice_weights(voice_weights, len(voice_files))
         reference_paths = await _save_uploads(voice_files, work_dir)
+        weighted_reference_paths = _weighted_reference_paths(reference_paths, weights)
         output_name = f"voice-blend-{datetime.now().strftime('%Y%m%d-%H%M%S')}.wav"
         output_path = work_dir / output_name
 
@@ -136,7 +141,7 @@ async def synthesize(
             text,
             language,
             split_sentences,
-            reference_paths,
+            weighted_reference_paths,
             output_path,
         )
 
@@ -165,6 +170,7 @@ async def create_vc_profile(
     split_sentences: bool = Form(True),
     consent_confirmed: bool = Form(False),
     profile_text: str = Form(""),
+    voice_weights: str = Form(""),
     voice_files: list[UploadFile] = File(...),
 ) -> dict[str, str | int]:
     if not consent_confirmed:
@@ -181,7 +187,9 @@ async def create_vc_profile(
     profile_dir.mkdir(parents=True, exist_ok=False)
 
     try:
+        weights = _parse_voice_weights(voice_weights, len(voice_files))
         reference_paths = await _save_uploads(voice_files, profile_dir / "refs")
+        weighted_reference_paths = _weighted_reference_paths(reference_paths, weights)
         target_path = profile_dir / "target.wav"
         prompt = profile_text.strip() or _default_profile_text(language)
         await run_in_threadpool(
@@ -189,7 +197,7 @@ async def create_vc_profile(
             prompt,
             language,
             split_sentences,
-            reference_paths,
+            weighted_reference_paths,
             target_path,
         )
         if not target_path.exists() or target_path.stat().st_size == 0:
@@ -282,6 +290,51 @@ async def _save_uploads(files: list[UploadFile], work_dir: Path) -> list[str]:
         reference_paths.append(str(target))
 
     return reference_paths
+
+
+def _parse_voice_weights(raw: str, expected_count: int) -> list[float]:
+    if not raw:
+        return [1.0] * expected_count
+
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=400, detail="参照音声の重み形式が不正です。") from exc
+
+    if not isinstance(parsed, list) or len(parsed) != expected_count:
+        raise HTTPException(status_code=400, detail="参照音声の数と重みの数が一致しません。")
+
+    weights: list[float] = []
+    for value in parsed:
+        try:
+            weight = float(value)
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail="参照音声の重みは数値で指定してください。") from exc
+        if weight < 0 or weight > 100:
+            raise HTTPException(status_code=400, detail="参照音声の重みは0〜100で指定してください。")
+        weights.append(weight)
+
+    if not any(weight > 0 for weight in weights):
+        raise HTTPException(status_code=400, detail="参照音声の重みは少なくとも1件を0より大きくしてください。")
+
+    return weights
+
+
+def _weighted_reference_paths(reference_paths: list[str], weights: list[float]) -> list[str]:
+    positive = [(path, weight) for path, weight in zip(reference_paths, weights) if weight > 0]
+    if not positive:
+        raise HTTPException(status_code=400, detail="有効な参照音声の重みがありません。")
+
+    max_weight = max(weight for _, weight in positive)
+    min_weight = min(weight for _, weight in positive)
+    if abs(max_weight - min_weight) < 1e-6:
+        return [path for path, _ in positive]
+
+    weighted_paths: list[str] = []
+    for path, weight in positive:
+        repeats = max(1, round((weight / max_weight) * MAX_WEIGHT_REPETITIONS_PER_FILE))
+        weighted_paths.extend([path] * repeats)
+    return weighted_paths
 
 
 def _synthesize_to_file(

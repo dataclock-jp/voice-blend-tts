@@ -385,13 +385,36 @@
 
     .track {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-columns: minmax(0, 1fr) minmax(120px, 170px) auto;
       gap: 12px;
       align-items: center;
       padding: 14px;
       border: 1px solid var(--line);
       border-radius: 8px;
       background: #ffffff;
+    }
+
+    .track-weight {
+      display: grid;
+      gap: 6px;
+    }
+
+    .track-weight-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .track-weight input[type="range"] {
+      width: 100%;
+      accent-color: var(--green);
+    }
+
+    .weight-number {
+      width: 72px;
+      min-height: 34px;
+      padding: 0 8px;
     }
 
     .track-name {
@@ -595,6 +618,14 @@
 
       .vc-controls {
         grid-template-columns: 1fr;
+      }
+
+      .track {
+        grid-template-columns: 1fr auto;
+      }
+
+      .track-weight {
+        grid-column: 1 / -1;
       }
 
       .brand h1 {
@@ -861,6 +892,7 @@
   <script>
     const state = {
       files: [],
+      weights: [],
       sourceAudioFile: null,
       outputUrl: "",
       outputName: "",
@@ -956,11 +988,12 @@
     function updateButtons() {
       const hasFiles = state.files.length > 0;
       const hasText = nodes.scriptText.value.trim().length > 0;
+      const hasPositiveWeight = normalizedWeights().some((weight) => weight > 0);
       const supportsMic = Boolean(window.SpeechRecognition || window.webkitSpeechRecognition);
       const supportsMediaRecorder = Boolean(navigator.mediaDevices && window.MediaRecorder);
-      nodes.generateButton.disabled = !state.backendReady || !hasFiles || !hasText || !nodes.consent.checked || state.busy;
+      nodes.generateButton.disabled = !state.backendReady || !hasFiles || !hasPositiveWeight || !hasText || !nodes.consent.checked || state.busy;
       nodes.transcribeButton.disabled = !state.backendReady || !state.sttReady || !state.sourceAudioFile || !nodes.consent.checked || state.busy;
-      nodes.prepareVcButton.disabled = !state.backendReady || !state.vcReady || !hasFiles || !nodes.consent.checked || state.busy || state.vcBusy;
+      nodes.prepareVcButton.disabled = !state.backendReady || !state.vcReady || !hasFiles || !hasPositiveWeight || !nodes.consent.checked || state.busy || state.vcBusy;
       nodes.convertFileButton.disabled = !state.backendReady || !state.vcReady || !state.sourceAudioFile || !nodes.consent.checked || state.busy || state.vcBusy;
       nodes.startRealtimeVcButton.disabled = !state.backendReady || !state.vcReady || !supportsMediaRecorder || !nodes.consent.checked || state.vcBusy;
       nodes.stopRealtimeVcButton.disabled = !state.vcBusy;
@@ -1010,6 +1043,18 @@
       updateButtons();
     }
 
+    function normalizedWeights() {
+      return state.files.map((_, index) => {
+        const value = Number(state.weights[index]);
+        if (!Number.isFinite(value)) return 1;
+        return Math.max(0, Math.min(100, value));
+      });
+    }
+
+    function appendVoiceWeights(form) {
+      form.append("voice_weights", JSON.stringify(normalizedWeights()));
+    }
+
     function renderFiles() {
       nodes.trackCount.textContent = state.files.length.toString();
       nodes.referenceMetric.textContent = `${state.files.length}件`;
@@ -1037,6 +1082,44 @@
         meta.textContent = `${file.type || "audio"} / ${formatBytes(file.size)}`;
         body.append(name, meta);
 
+        const weight = Math.max(0, Math.min(100, Number(state.weights[index]) || 0));
+        const weightField = document.createElement("div");
+        weightField.className = "track-weight";
+
+        const weightRow = document.createElement("div");
+        weightRow.className = "track-weight-row";
+        const weightLabel = document.createElement("label");
+        weightLabel.textContent = "重み";
+        weightLabel.htmlFor = `weight-${index}`;
+        const weightNumber = document.createElement("input");
+        weightNumber.className = "weight-number";
+        weightNumber.type = "number";
+        weightNumber.min = "0";
+        weightNumber.max = "100";
+        weightNumber.step = "1";
+        weightNumber.value = weight.toString();
+        weightRow.append(weightLabel, weightNumber);
+
+        const weightInput = document.createElement("input");
+        weightInput.id = `weight-${index}`;
+        weightInput.type = "range";
+        weightInput.min = "0";
+        weightInput.max = "100";
+        weightInput.step = "1";
+        weightInput.value = weight.toString();
+        const updateWeight = (value) => {
+          const next = Math.max(0, Math.min(100, Number(value) || 0));
+          state.weights[index] = next;
+          weightInput.value = next.toString();
+          weightNumber.value = next.toString();
+          resetOutput();
+          resetVcProfile("重みが変わりました。VC準備を再実行してください。");
+          updateButtons();
+        };
+        weightInput.addEventListener("input", () => updateWeight(weightInput.value));
+        weightNumber.addEventListener("change", () => updateWeight(weightNumber.value));
+        weightField.append(weightRow, weightInput);
+
         const remove = document.createElement("button");
         remove.className = "icon-btn";
         remove.type = "button";
@@ -1053,13 +1136,14 @@
         `;
         remove.addEventListener("click", () => {
           state.files.splice(index, 1);
+          state.weights.splice(index, 1);
           renderFiles();
           resetOutput();
           resetVcProfile("参照音声が変わりました。VC準備を再実行してください。");
           setMessage("参照音声を削除しました。");
         });
 
-        item.append(body, remove);
+        item.append(body, weightField, remove);
         nodes.trackList.appendChild(item);
       });
 
@@ -1073,6 +1157,7 @@
         return;
       }
       state.files.push(...incoming);
+      state.weights.push(...incoming.map(() => 50));
       renderFiles();
       resetOutput();
       resetVcProfile("参照音声が変わりました。VC準備を再実行してください。");
@@ -1114,6 +1199,7 @@
       form.append("language", nodes.language.value);
       form.append("split_sentences", nodes.splitSentences.checked ? "true" : "false");
       form.append("consent_confirmed", nodes.consent.checked ? "true" : "false");
+      appendVoiceWeights(form);
       state.files.forEach((file) => form.append("voice_files", file, file.name));
 
       try {
@@ -1218,6 +1304,7 @@
       form.append("language", nodes.language.value);
       form.append("split_sentences", nodes.splitSentences.checked ? "true" : "false");
       form.append("consent_confirmed", nodes.consent.checked ? "true" : "false");
+      appendVoiceWeights(form);
       state.files.forEach((file) => form.append("voice_files", file, file.name));
 
       try {
@@ -1687,6 +1774,7 @@
     nodes.clearButton.addEventListener("click", () => {
       stopRealtimeVc();
       state.files = [];
+      state.weights = [];
       state.sourceAudioFile = null;
       state.liveQueue = [];
       state.vcQueue = [];

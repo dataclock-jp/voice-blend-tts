@@ -34,11 +34,14 @@ uvicorn server:app --reload --host 127.0.0.1 --port 8000
 ## 使い方
 
 1. 参照音声を複数アップロードします。
-2. 言語を選び、話させたいセリフを入力します。
-3. 音声利用の権限と本人同意を確認してチェックします。
-4. `生成` を押して、プレビュー後にWAVをダウンロードします。
+2. 必要に応じて、各参照音声の重みを0〜100で調整します。
+3. 言語を選び、話させたいセリフを入力します。
+4. 音声利用の権限と本人同意を確認してチェックします。
+5. `生成` を押して、プレビュー後にWAVをダウンロードします。
 
 参照音声は、ノイズやBGMが少ない6〜30秒程度の自然な発話を推奨します。MP3などで失敗する場合はWAVに変換してください。
+
+重みは、どの参照音声へ寄せるかを調整するための値です。内部的には重みに応じてXTTSへ渡す参照音声リストを展開するため、完全な連続値の話者埋め込み補間ではなく、モデル入力上の近似的な寄せ方になります。重みを変更した場合、リアルタイムVC用の `VC準備` は再実行してください。
 
 ## 音声置換
 
@@ -60,6 +63,7 @@ uvicorn server:app --reload --host 127.0.0.1 --port 8000
 - `VOICE_BLEND_FORCE_CPU=1`: GPUがあってもCPUで実行します。
 - `VOICE_BLEND_MODEL`: 使用するCoqui TTSモデル名を変更します。
 - `VOICE_BLEND_VC_MODEL`: 使用するCoqui VCモデル名です。既定値は `voice_conversion_models/multilingual/vctk/freevc24` です。
+- `VOICE_BLEND_MAX_WEIGHT_REPETITIONS`: 重みに応じて参照音声を展開する最大反復数です。既定値は8です。
 - `VOICE_BLEND_STT_MODEL`: Whisperの文字起こしモデル名です。既定値は `base` です。
 - `VOICE_BLEND_PROFILE_DIR`: VCプロファイルの一時保存先です。
 - `VOICE_BLEND_MAX_FILES`: 参照音声の最大数です。既定値は12です。
