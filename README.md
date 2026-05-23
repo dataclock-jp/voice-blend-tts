@@ -22,6 +22,8 @@ cd voice-blend-tts
 py -3.10 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
+# WindowsでTorchCodecの音声読み込みを使う場合はFFmpeg shared buildも必要です。
+scoop install ffmpeg-shared
 # XTTS v2のモデルライセンスを確認して同意した場合だけ設定します。
 $env:COQUI_TOS_AGREED = "1"
 uvicorn server:app --reload --host 127.0.0.1 --port 8000
@@ -59,6 +61,19 @@ pip install "transformers==4.33.3"
 
 `Weights only load failed` と `XttsConfig was not an allowed global` が出る場合は、PyTorch 2.6以降の安全ロード制約により古いXTTSチェックポイントが止まっています。このアプリでは公式XTTSモデルを信頼する前提で、必要なCoqui設定クラスを `torch.serialization.add_safe_globals` に登録して読み込みます。最新版へ更新してからサーバーを再起動してください。
 
+`TorchCodec is required for load_with_torchcodec` または `Could not load libtorchcodec` が出る場合は、TorchCodec本体かFFmpeg共有DLLが不足しています。Windowsでは通常の静的FFmpegではなく、`avcodec-*.dll` などを含む shared build が必要です。
+
+```powershell
+pip install "torchcodec==0.11.1"
+scoop install ffmpeg-shared
+```
+
+Scoop以外でFFmpeg shared buildを入れた場合は、その `bin` ディレクトリを指定してからサーバーを起動してください。
+
+```powershell
+$env:VOICE_BLEND_FFMPEG_BIN = "C:\path\to\ffmpeg\bin"
+```
+
 ## 使い方
 
 1. 参照音声を複数アップロードします。
@@ -94,6 +109,7 @@ pip install "transformers==4.33.3"
 - `VOICE_BLEND_MAX_WEIGHT_REPETITIONS`: 重みに応じて参照音声を展開する最大反復数です。既定値は8です。
 - `VOICE_BLEND_STT_MODEL`: Whisperの文字起こしモデル名です。既定値は `base` です。
 - `VOICE_BLEND_PROFILE_DIR`: VCプロファイルの一時保存先です。
+- `VOICE_BLEND_FFMPEG_BIN`: WindowsでTorchCodec用のFFmpeg shared buildを自動検出できない場合に `bin` ディレクトリを指定します。
 - `VOICE_BLEND_MAX_FILES`: 参照音声の最大数です。既定値は12です。
 - `VOICE_BLEND_MAX_TOTAL_MB`: アップロード合計サイズ上限です。既定値は250MBです。
 

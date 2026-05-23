@@ -36,6 +36,52 @@ _stt_model = None
 _model_lock = threading.RLock()
 _vc_lock = threading.RLock()
 _stt_lock = threading.RLock()
+_ffmpeg_dll_configured = False
+_ffmpeg_dll_handles = []
+
+
+def _configure_ffmpeg_dll_path() -> None:
+    global _ffmpeg_dll_configured
+    if _ffmpeg_dll_configured or os.name != "nt":
+        return
+
+    _ffmpeg_dll_configured = True
+    add_dll_directory = getattr(os, "add_dll_directory", None)
+    if add_dll_directory is None:
+        return
+
+    candidates: list[Path] = []
+    if os.getenv("VOICE_BLEND_FFMPEG_BIN"):
+        candidates.append(Path(os.environ["VOICE_BLEND_FFMPEG_BIN"]))
+
+    scoop_home = Path(os.getenv("SCOOP", str(Path.home() / "scoop")))
+    candidates.extend(
+        [
+            scoop_home / "apps" / "ffmpeg-shared" / "current" / "bin",
+            Path(r"C:\ffmpeg\bin"),
+            Path(r"C:\Program Files\ffmpeg\bin"),
+        ]
+    )
+
+    for candidate in candidates:
+        if _has_ffmpeg_shared_dlls(candidate):
+            _ffmpeg_dll_handles.append(add_dll_directory(str(candidate)))
+            path_parts = os.environ.get("PATH", "").split(os.pathsep)
+            if str(candidate) not in path_parts:
+                os.environ["PATH"] = str(candidate) + os.pathsep + os.environ.get("PATH", "")
+            return
+
+
+def _has_ffmpeg_shared_dlls(path: Path) -> bool:
+    try:
+        return (
+            path.is_dir()
+            and any(path.glob("avcodec-*.dll"))
+            and any(path.glob("avformat-*.dll"))
+            and any(path.glob("avutil-*.dll"))
+        )
+    except OSError:
+        return False
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -50,8 +96,10 @@ def favicon() -> Response:
 
 @app.get("/api/status")
 def status() -> dict[str, str | bool]:
+    _configure_ffmpeg_dll_path()
     try:
         import torch  # noqa: F401
+        from torchcodec.decoders import AudioDecoder as _AudioDecoder  # noqa: F401
         from TTS.api import TTS as _TTS  # noqa: F401
     except Exception as exc:
         return {
@@ -370,6 +418,7 @@ def _get_tts_model():
     if _tts_model is not None:
         return _tts_model
 
+    _configure_ffmpeg_dll_path()
     _configure_torch_safe_loading()
 
     from TTS.api import TTS
@@ -384,6 +433,7 @@ def _get_vc_model():
     if _vc_model is not None:
         return _vc_model
 
+    _configure_ffmpeg_dll_path()
     _configure_torch_safe_loading()
 
     from TTS.api import TTS
@@ -428,6 +478,7 @@ def _get_stt_model():
     if _stt_model is not None:
         return _stt_model
 
+    _configure_ffmpeg_dll_path()
     import whisper
 
     model_name = os.getenv("VOICE_BLEND_STT_MODEL", "base")
@@ -436,6 +487,7 @@ def _get_stt_model():
 
 
 def _stt_available() -> bool:
+    _configure_ffmpeg_dll_path()
     try:
         import whisper  # noqa: F401
     except Exception:
@@ -481,6 +533,8 @@ def _friendly_error(exc: Exception) -> str:
     text = str(exc)
     if "No module named" in text or exc.__class__.__name__ == "ModuleNotFoundError":
         return "Python依存関係が不足しています。READMEのインストール手順を実行してください。"
+    if "TorchCodec is required" in text or "Could not load libtorchcodec" in text:
+        return "TorchCodecまたはFFmpeg共有DLLを読み込めません。READMEのWindows/TorchCodec手順を実行してください。"
     if "CUDA out of memory" in text:
         return "GPUメモリが不足しています。VOICE_BLEND_FORCE_CPU=1でCPU実行に切り替えるか、短いセリフで再試行してください。"
     if "ffmpeg" in text.lower():
