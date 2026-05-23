@@ -31,6 +31,24 @@ uvicorn server:app --reload --host 127.0.0.1 --port 8000
 
 初回生成時にXTTS v2のモデルがダウンロードされます。GPUがある場合はCUDA、ない場合はCPUで実行します。Python 3.14ではCoqui TTSの依存関係が合わない可能性が高いため、Python 3.10を使ってください。
 
+## GPU / CUDA
+
+NVIDIA GPUで実行する場合は、CPU版PyTorchではなくCUDA版PyTorchを入れてください。RTX 3070と新しめのNVIDIAドライバではCUDA 12.8 wheelを推奨します。
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+pip uninstall -y torch torchaudio torchvision
+pip install torch torchaudio torchvision --index-url https://download.pytorch.org/whl/cu128
+```
+
+確認:
+
+```powershell
+python -c "import torch; print(torch.__version__); print(torch.version.cuda); print(torch.cuda.is_available()); print(torch.cuda.get_device_name(0))"
+```
+
+`torch.cuda.is_available()` が `True` なら、画面のステータスは `準備完了 (cuda)` になります。
+
 ## 使い方
 
 1. 参照音声を複数アップロードします。
