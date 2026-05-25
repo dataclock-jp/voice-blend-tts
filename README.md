@@ -122,3 +122,7 @@ pip install cutlet unidic-lite
 ## 注意
 
 このツールは、利用権限があり、本人同意のある音声だけに使ってください。生成物の公開や商用利用は、参照音声、モデル、生成内容の権利条件を確認してから行ってください。
+
+## License
+
+MIT License. See `LICENSE`.
